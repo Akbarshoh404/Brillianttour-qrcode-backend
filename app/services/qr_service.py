@@ -28,7 +28,10 @@ def generate_qr_png(data: str) -> bytes:
         version=None,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
         box_size=10,
-        border=4,
+        # 2 modules is the smallest quiet zone that keeps the code reliably
+        # scannable while avoiding the large white margin the default (4)
+        # produces.
+        border=2,
     )
     qr.add_data(data)
     qr.make(fit=True)
