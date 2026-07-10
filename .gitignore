@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+
+__pycache__/
+**/__pycache__/
+*.pyc
+
+.venv/
+.venv_smoketest/
+venv/
+
+.pytest_cache/
+*.egg-info/
+
+.DS_Store
+Thumbs.db
