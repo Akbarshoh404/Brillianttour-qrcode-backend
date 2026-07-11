@@ -12,3 +12,11 @@ def get_client_ip(request: Request) -> str | None:
         return real_ip.strip()
 
     return request.client.host if request.client else None
+
+
+def get_primary_language(request: Request) -> str | None:
+    """First language tag from the Accept-Language header, e.g. 'en-US'."""
+    accept_language = request.headers.get("accept-language")
+    if not accept_language:
+        return None
+    return accept_language.split(",")[0].split(";")[0].strip() or None

@@ -27,6 +27,10 @@ class DocumentResponse(BaseModel):
     last_scan: datetime | None = None
     last_download: datetime | None = None
 
+    is_active: bool
+    deleted_at: datetime | None = None
+    purge_at: datetime | None = None
+
     # Populated by the service layer from PUBLIC_BASE_URL — never hardcoded.
     qr_url: str
     view_url: str

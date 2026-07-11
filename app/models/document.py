@@ -1,7 +1,7 @@
 import uuid as uuid_lib
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Integer, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -36,6 +36,16 @@ class Document(Base):
 
     last_scan: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_download: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Lets an owner turn a QR code off without destroying it (e.g. a client
+    # stops paying). Disabled documents keep their history and can be
+    # re-enabled at any time. Distinct from deleted_at (trash).
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+
+    # Soft-delete timestamp. Set on DELETE, cleared on restore. A document
+    # with deleted_at set is in the trash and is purged permanently ~7 days
+    # later (see document_service.purge_expired_trash).
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
     scans: Mapped[list["Scan"]] = relationship(
         back_populates="document", cascade="all, delete-orphan", passive_deletes=True

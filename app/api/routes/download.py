@@ -18,7 +18,7 @@ router = APIRouter(tags=["download"])
 @router.get("/download/{document_uuid}")
 def download_and_redirect(document_uuid: uuid_lib.UUID, db: Session = Depends(get_db)):
     """Logs a download event then redirects the browser straight to the PDF."""
-    document = document_service.get_document_by_uuid(db, document_uuid)
+    document = document_service.get_public_document(db, document_uuid)
 
     if document is None:
         return render_error_page(
@@ -26,6 +26,14 @@ def download_and_redirect(document_uuid: uuid_lib.UUID, db: Session = Depends(ge
             heading="File not found",
             message="This document may have been deleted and is no longer available for download.",
             emoji="X",
+        )
+
+    if not document.is_active:
+        return render_error_page(
+            code="410",
+            heading="This document is currently unavailable",
+            message="The owner has temporarily disabled downloads for this file. Please check back later.",
+            emoji="!",
         )
 
     record_download(db, document)

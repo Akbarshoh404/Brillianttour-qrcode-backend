@@ -34,6 +34,18 @@ class Settings(BaseSettings):
     # --- Third party services ------------------------------------------
     IP_GEOLOCATION_API_KEY: str = ""
 
+    # --- Auth ----------------------------------------------------------------
+    # Single-admin login gating the dashboard (viewing/creating/deleting
+    # documents). The public /p/{uuid} and /download/{uuid} routes are never
+    # gated by this — end recipients of a PDF never need to authenticate.
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = ""
+    JWT_SECRET_KEY: str = ""
+    JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
+    # --- Trash -----------------------------------------------------------------
+    TRASH_RETENTION_DAYS: int = 7
+
     # --- App ---------------------------------------------------------------
     APP_ENV: str = "local"
     APP_NAME: str = "PDF QR Management Service"
