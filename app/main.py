@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import documents, download, redirect
+from app.api.routes import documents, domains, download, folders, redirect
 from app.config import settings
 from app.middleware.error_handler import register_exception_handlers
 from app.middleware.logging import RequestLoggingMiddleware
@@ -33,6 +33,8 @@ app.add_middleware(RequestLoggingMiddleware)
 register_exception_handlers(app)
 
 app.include_router(documents.router)
+app.include_router(domains.router)
+app.include_router(folders.router)
 app.include_router(redirect.router)
 app.include_router(download.router)
 

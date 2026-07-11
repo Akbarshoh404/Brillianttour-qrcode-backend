@@ -31,6 +31,11 @@ class DocumentResponse(BaseModel):
     deleted_at: datetime | None = None
     purge_at: datetime | None = None
 
+    domain_id: int | None = None
+    domain_name: str | None = None
+    folder_id: int | None = None
+    folder_name: str | None = None
+
     # Populated by the service layer from PUBLIC_BASE_URL — never hardcoded.
     qr_url: str
     view_url: str

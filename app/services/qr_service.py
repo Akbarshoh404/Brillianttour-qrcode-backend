@@ -17,9 +17,15 @@ from qrcode.image.pil import PilImage
 from app.config import settings
 
 
-def build_qr_target_url(document_uuid: uuid_lib.UUID) -> str:
-    """The permanent, public URL encoded into the QR code."""
-    return f"{settings.PUBLIC_BASE_URL.rstrip('/')}/p/{document_uuid}"
+def build_qr_target_url(document_uuid: uuid_lib.UUID, base_url: str | None = None) -> str:
+    """The permanent, public URL encoded into the QR code.
+
+    `base_url` lets a document use a different public domain than the
+    globally configured default (see the domains feature) — still never
+    hardcoded, just resolved per-document instead of from a single env var.
+    """
+    resolved = (base_url or settings.PUBLIC_BASE_URL).rstrip("/")
+    return f"{resolved}/p/{document_uuid}"
 
 
 def generate_qr_png(data: str) -> bytes:

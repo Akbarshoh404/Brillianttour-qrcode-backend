@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.schemas.document import DocumentListResponse, DocumentResponse
+from app.schemas.folder import FolderMoveRequest
 from app.schemas.scan import ScanSummaryResponse
 from app.services import document_service
 from app.services.analytics_service import get_scan_summary
@@ -21,20 +22,29 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 async def upload_document(
     file: UploadFile,
     title: str | None = Form(default=None),
+    domain_id: int | None = Form(default=None),
+    folder_id: int | None = Form(default=None),
     db: Session = Depends(get_db),
 ) -> DocumentResponse:
     contents = await validate_pdf_upload(file)
     resolved_title = (title or "").strip() or (file.filename or "Untitled document").rsplit(".", 1)[0]
 
     document = document_service.create_document(
-        db, title=resolved_title, contents=contents, filename=file.filename or "document.pdf"
+        db,
+        title=resolved_title,
+        contents=contents,
+        filename=file.filename or "document.pdf",
+        domain_id=domain_id,
+        folder_id=folder_id,
     )
     return document_service.to_response(document)
 
 
 @router.get("", response_model=DocumentListResponse)
-def list_documents(search: str | None = None, db: Session = Depends(get_db)) -> DocumentListResponse:
-    return document_service.list_documents(db, search=search)
+def list_documents(
+    search: str | None = None, folder_id: int | None = None, db: Session = Depends(get_db)
+) -> DocumentListResponse:
+    return document_service.list_documents(db, search=search, folder_id=folder_id)
 
 
 # NOTE: this must be registered before GET /documents/{document_uuid} —
@@ -116,6 +126,17 @@ def enable_document(document_uuid: uuid_lib.UUID, db: Session = Depends(get_db))
     return document_service.to_response(document)
 
 
+@router.post("/{document_uuid}/move", response_model=DocumentResponse)
+def move_document(document_uuid: uuid_lib.UUID, payload: FolderMoveRequest, db: Session = Depends(get_db)) -> DocumentResponse:
+    """Files a document into a different folder (or back to unfiled, if
+    folder_id is null) — physically relocates it between Supabase Storage
+    buckets, since each folder owns its own bucket."""
+    document = document_service.get_document_or_404(db, document_uuid)
+    folder = document_service.get_folder_or_404(db, payload.folder_id) if payload.folder_id is not None else None
+    document = document_service.move_document_to_folder(db, document, folder=folder)
+    return document_service.to_response(document)
+
+
 @router.get("/{document_uuid}/scans/summary", response_model=ScanSummaryResponse)
 def get_document_scan_summary(document_uuid: uuid_lib.UUID, db: Session = Depends(get_db)) -> ScanSummaryResponse:
     document = document_service.get_document_or_404(db, document_uuid)
@@ -125,7 +146,8 @@ def get_document_scan_summary(document_uuid: uuid_lib.UUID, db: Session = Depend
 @router.get("/{document_uuid}/qr")
 def get_document_qr(document_uuid: uuid_lib.UUID, db: Session = Depends(get_db)) -> StreamingResponse:
     document = document_service.get_document_or_404(db, document_uuid)
-    target_url = build_qr_target_url(document.uuid)
+    base_url = document.domain.base_url if document.domain else None
+    target_url = build_qr_target_url(document.uuid, base_url)
     png_bytes = generate_qr_png(target_url)
 
     return StreamingResponse(

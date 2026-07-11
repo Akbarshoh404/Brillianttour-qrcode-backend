@@ -58,6 +58,38 @@ anyone who knows a document's UUID or hits `/documents`, same as before.
    document list or trash list is fetched) rather than via a background
    scheduler, so there's no long-running worker process to keep alive.
 
+## Multiple domains
+
+This started as a single-tenant tool (one PDF business, one QR domain) but
+now supports several: `POST /domains` registers an additional public domain
+(e.g. a second client's own branded domain), and every document can be
+assigned to one at upload time via `domain_id`. A document with no
+`domain_id` falls back to `PUBLIC_BASE_URL` — the env var is really just
+"domain zero," never hardcoded, so nothing breaks for existing documents
+when a new domain gets added.
+
+Registering a domain here is bookkeeping only — it doesn't provision DNS,
+TLS, or a reverse-proxy route. The domain's DNS still needs to actually
+point at wherever this backend is deployed before `/p/{uuid}` links under
+it will resolve. `/p/{uuid}` and `/download/{uuid}` don't care which domain
+they were reached through — the request is only routed by document UUID —
+so one backend instance can transparently serve QR redirects for as many
+domains as you've pointed at it.
+
+## Folders (one Supabase Storage bucket per folder)
+
+`POST /folders` creates an organizational folder — and, deliberately, a
+**dedicated Supabase Storage bucket** for it (not just a path prefix inside
+the shared bucket). Documents filed into a folder physically live in that
+bucket. Moving a document between folders (`POST /documents/{uuid}/move`)
+downloads the file from its current bucket and re-uploads it to the
+target's, then deletes the original — a real migration, not a relabel.
+
+A folder can't be deleted while it still holds documents (including
+trashed ones, since their files are still sitting in that bucket) —
+`DELETE /folders/{id}` returns 409 until it's empty. Once it is, the
+bucket itself is deleted along with the folder row.
+
 ## Analytics — what gets tracked
 
 Every field collected on a scan is **passive**: pulled from the IP address
@@ -112,7 +144,7 @@ environment purely by changing these:
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-side only — never expose this to a browser |
 | `SUPABASE_STORAGE_BUCKET` | Bucket PDFs are stored in (default `pdfs`) |
 | `DATABASE_URL` | Postgres connection string |
-| `PUBLIC_BASE_URL` | The domain this API is reachable at. Every QR code encodes `{PUBLIC_BASE_URL}/p/{uuid}` — get this wrong and every printed QR code points at the wrong place |
+| `PUBLIC_BASE_URL` | The domain this API is reachable at, and the default QR domain for any document not assigned to one of the extra domains registered via `POST /domains` |
 | `CORS_ORIGINS` | Comma-separated list of frontend origins allowed to call this API |
 | `IP_GEOLOCATION_API_KEY` | Optional — powers country/city on scan analytics |
 | `TRASH_RETENTION_DAYS` | Optional — how long deleted documents stay recoverable before permanent purge (default 7) |
@@ -159,10 +191,12 @@ environments.
   domain(s) on whatever platform hosts this — the values in `.env.example`
   are placeholders/documentation only, they don't get read automatically by
   most hosting platforms.
-- Redeploying after pulling the lifecycle/analytics changes still just
-  works — `alembic upgrade head` runs automatically on every container
-  start, so the `is_active`/`deleted_at`/richer-scan-fields migration
-  applies itself.
+- Redeploying after pulling newer migrations still just works — `alembic
+  upgrade head` runs automatically on every container start.
+- Creating a folder makes a real, synchronous call to the Supabase Storage
+  API to provision its bucket — if that call fails, the folder isn't
+  created either (no orphaned DB row pointing at a bucket that doesn't
+  exist).
 
 ## API reference
 
@@ -180,6 +214,13 @@ environments.
 | `POST` | `/documents/{uuid}/enable` | Turn a disabled QR code back on |
 | `GET` | `/documents/{uuid}/scans/summary` | Country/device/browser breakdown + recent scans |
 | `GET` | `/documents/{uuid}/qr` | Stream the QR code as a PNG (generated fresh every time) |
+| `POST` | `/documents/{uuid}/move` | File a document into a different folder (`{folder_id}`, null to unfile) |
+| `GET` | `/domains` | List domains — always includes the implicit default (`PUBLIC_BASE_URL`) first |
+| `POST` | `/domains` | Register an additional domain (`{name, base_url}`) |
+| `DELETE` | `/domains/{id}` | Remove a domain — its documents fall back to the default, not orphaned |
+| `GET` | `/folders` | List folders with their active document counts |
+| `POST` | `/folders` | Create a folder — also provisions its dedicated Supabase Storage bucket |
+| `DELETE` | `/folders/{id}` | Delete an empty folder and its bucket (409 if it still has documents) |
 | `GET` | `/p/{uuid}` | The permanent QR entry point — logs a scan, redirects to the PDF (or shows an unavailable page if disabled, or 404 if deleted) |
 | `GET` | `/download/{uuid}` | Logs a download, redirects to the PDF (same disabled/deleted handling) |
 | `GET` | `/health` | Health check |

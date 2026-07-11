@@ -38,5 +38,5 @@ def download_and_redirect(document_uuid: uuid_lib.UUID, db: Session = Depends(ge
 
     record_download(db, document)
 
-    signed_url = storage_service.create_signed_url(document.storage_path)
+    signed_url = storage_service.create_signed_url(document.storage_path, bucket_name=document.storage_bucket)
     return RedirectResponse(url=signed_url, status_code=307)
