@@ -22,10 +22,10 @@ one off without deleting it (say, a client stops paying and you want to
 pause access, not destroy the file), and a trash bin that gives a week's
 grace period before a deletion is truly permanent.
 
-There are no user accounts — just one shared dashboard login (see
-[Auth](#auth)). Anyone with a printed QR code or a PDF link never needs to
-authenticate; the login only gates the management side (viewing the
-dashboard, uploading, replacing, disabling, deleting).
+There are no user accounts and no auth on this API at all — the frontend
+puts a simple password gate in front of its own dashboard UI, but that's a
+frontend-only concern (see the frontend README). This backend serves
+anyone who knows a document's UUID or hits `/documents`, same as before.
 
 ## How a document's life cycle works
 
@@ -57,20 +57,6 @@ dashboard, uploading, replacing, disabling, deleting).
    deletes immediately. Purging happens lazily (checked whenever the
    document list or trash list is fetched) rather than via a background
    scheduler, so there's no long-running worker process to keep alive.
-
-## Auth
-
-One shared credential (`ADMIN_USERNAME` / `ADMIN_PASSWORD`) gates the
-dashboard. `POST /auth/login` verifies it and returns a JWT; every
-`/documents/*` route requires that JWT as a Bearer token. Nothing else does
-— `/p/{uuid}`, `/download/{uuid}`, and `/health` stay open to anyone,
-because the people scanning a QR code or clicking a shared link are never
-the same audience as whoever manages the dashboard.
-
-There's no registration, no password reset flow, no multi-user support —
-it's one password for one small team, deliberately simple. If this ever
-needs more than that, the JWT dependency (`get_current_admin` in
-`app/api/deps.py`) is the one seam to extend.
 
 ## Analytics — what gets tracked
 
@@ -129,17 +115,9 @@ environment purely by changing these:
 | `PUBLIC_BASE_URL` | The domain this API is reachable at. Every QR code encodes `{PUBLIC_BASE_URL}/p/{uuid}` — get this wrong and every printed QR code points at the wrong place |
 | `CORS_ORIGINS` | Comma-separated list of frontend origins allowed to call this API |
 | `IP_GEOLOCATION_API_KEY` | Optional — powers country/city on scan analytics |
-| `ADMIN_USERNAME` | Dashboard login username (default `admin`) |
-| `ADMIN_PASSWORD` | Dashboard login password — **required**, pick something strong, this is the only thing gating document management |
-| `JWT_SECRET_KEY` | **Required** — random secret signing the login token. Generate one with `python -c "import secrets; print(secrets.token_urlsafe(32))"` and never reuse it across environments |
-| `JWT_EXPIRE_MINUTES` | Optional — how long a login stays valid (default 7 days) |
 | `TRASH_RETENTION_DAYS` | Optional — how long deleted documents stay recoverable before permanent purge (default 7) |
 | `APP_ENV` | `local` \| `staging` \| `production` |
 | `PORT` | Optional — most hosting platforms inject this automatically |
-
-Without `ADMIN_PASSWORD` and `JWT_SECRET_KEY` set, every login attempt
-fails with a clear 500 ("Auth is not configured on the server") rather than
-silently accepting anything — the app will not boot into an insecure state.
 
 ## Running locally
 
@@ -181,22 +159,15 @@ environments.
   domain(s) on whatever platform hosts this — the values in `.env.example`
   are placeholders/documentation only, they don't get read automatically by
   most hosting platforms.
-- Redeploying after pulling auth/lifecycle changes still just works —
-  `alembic upgrade head` runs automatically on every container start, so
-  the `is_active`/`deleted_at`/richer-scan-fields migration applies itself.
-  Just make sure `ADMIN_PASSWORD` and `JWT_SECRET_KEY` are set on the
-  platform before the first request, or logins will fail with a 500.
+- Redeploying after pulling the lifecycle/analytics changes still just
+  works — `alembic upgrade head` runs automatically on every container
+  start, so the `is_active`/`deleted_at`/richer-scan-fields migration
+  applies itself.
 
 ## API reference
 
-Everything under `/documents` requires `Authorization: Bearer <token>` from
-`POST /auth/login`. `/p/{uuid}`, `/download/{uuid}`, `/auth/login`, and
-`/health` do not.
-
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/auth/login` | `{username, password}` → `{access_token}` |
-| `GET` | `/auth/me` | Returns the current username — used by the frontend to validate a stored token |
 | `POST` | `/documents` | Upload a PDF (multipart: `file`, optional `title`) |
 | `GET` | `/documents` | List active + disabled documents (optional `?search=`) — excludes trash |
 | `GET` | `/documents/trash` | List documents in the trash, with `purge_at` |
@@ -215,13 +186,9 @@ Everything under `/documents` requires `Authorization: Bearer <token>` from
 
 ## A note on security
 
-Treat `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `ADMIN_PASSWORD`, and
-`JWT_SECRET_KEY` like passwords — the first two bypass Row Level Security
-entirely, and the last two are the only thing standing between the public
-internet and your document management actions. Never commit a real `.env`
-file (it's git-ignored already; keep it that way), and if any of these are
-ever accidentally exposed (public repo, shared screenshot, etc.), rotate
-them immediately rather than trying to "undo" the exposure — Supabase keys
-from the dashboard, `ADMIN_PASSWORD`/`JWT_SECRET_KEY` by just changing the
-env var and redeploying (this instantly invalidates every existing login
-token, since they're all signed with the old secret).
+Treat `SUPABASE_SERVICE_ROLE_KEY` and `DATABASE_URL` like passwords — they
+bypass Row Level Security entirely. Never commit a real `.env` file (it's
+git-ignored already; keep it that way), and if either value is ever
+accidentally exposed (public repo, shared screenshot, etc.), rotate it
+immediately from the Supabase dashboard rather than trying to "undo" the
+exposure.

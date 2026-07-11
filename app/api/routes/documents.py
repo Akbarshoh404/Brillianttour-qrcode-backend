@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_admin, get_db
+from app.api.deps import get_db
 from app.schemas.document import DocumentListResponse, DocumentResponse
 from app.schemas.scan import ScanSummaryResponse
 from app.services import document_service
@@ -14,7 +14,7 @@ from app.services.analytics_service import get_scan_summary
 from app.services.qr_service import build_qr_target_url, generate_qr_png
 from app.utils.file_validation import validate_pdf_upload
 
-router = APIRouter(prefix="/documents", tags=["documents"], dependencies=[Depends(get_current_admin)])
+router = APIRouter(prefix="/documents", tags=["documents"])
 
 
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)

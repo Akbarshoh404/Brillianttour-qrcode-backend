@@ -1,4 +1,3 @@
-from app.schemas.auth import CurrentUserResponse, LoginRequest, TokenResponse
 from app.schemas.document import DocumentListResponse, DocumentResponse
 from app.schemas.download import DownloadResponse
 from app.schemas.error import ErrorResponse
@@ -12,7 +11,4 @@ __all__ = [
     "ScanSummaryResponse",
     "DownloadResponse",
     "ErrorResponse",
-    "LoginRequest",
-    "TokenResponse",
-    "CurrentUserResponse",
 ]
