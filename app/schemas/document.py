@@ -19,6 +19,7 @@ class DocumentResponse(BaseModel):
     id: int
     uuid: uuid_lib.UUID
     title: str
+    notes: str | None = None
     file_size: int
     created_at: datetime
     updated_at: datetime

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.document import Document
 from app.models.folder import Folder
 from app.schemas.folder import FolderResponse
+from app.services import document_service
 from app.services.storage_service import storage_service
 from app.utils.slug import unique_bucket_name
 
@@ -53,16 +54,21 @@ def get_folder_or_404(db: Session, folder_id: int) -> Folder:
     return folder
 
 
-def delete_folder(db: Session, folder: Folder) -> None:
+def delete_folder(db: Session, folder: Folder, *, force: bool = False) -> None:
     """Refuses to delete a folder that still has documents in it (including
     trashed ones — their files still live in this folder's bucket, and
-    deleting it out from under them would break trash restore)."""
-    document_count = db.query(func.count(Document.id)).filter(Document.folder_id == folder.id).scalar() or 0
-    if document_count > 0:
+    deleting it out from under them would break trash restore) — unless
+    `force` is set, in which case those documents are permanently deleted
+    right along with the folder."""
+    documents = db.query(Document).filter(Document.folder_id == folder.id).all()
+    if documents and not force:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This folder still has documents in it (including trash). Move or permanently delete them first.",
         )
+
+    for document in documents:
+        document_service.hard_delete_document(db, document)
 
     bucket_name = folder.storage_bucket
     db.delete(folder)

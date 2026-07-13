@@ -40,6 +40,7 @@ def to_response(document: Document) -> DocumentResponse:
         id=document.id,
         uuid=document.uuid,
         title=document.title,
+        notes=document.notes,
         file_size=document.file_size,
         created_at=document.created_at,
         updated_at=document.updated_at,
@@ -71,6 +72,7 @@ def create_document(
     title: str,
     contents: bytes,
     filename: str,
+    notes: str | None = None,
     domain_id: int | None = None,
     folder_id: int | None = None,
 ) -> Document:
@@ -85,6 +87,7 @@ def create_document(
     document = Document(
         uuid=document_uuid,
         title=title,
+        notes=notes,
         storage_path=storage_path,
         storage_bucket=bucket_name,
         file_size=len(contents),
@@ -241,6 +244,14 @@ def hard_delete_document(db: Session, document: Document) -> None:
     db.delete(document)
     db.commit()
     storage_service.delete(storage_path, bucket_name=bucket_name)
+
+
+def hard_delete_all_trash(db: Session) -> int:
+    """Irreversibly delete every document currently in the trash."""
+    documents = db.query(Document).filter(Document.deleted_at.is_not(None)).all()
+    for document in documents:
+        hard_delete_document(db, document)
+    return len(documents)
 
 
 def purge_expired_trash(db: Session) -> int:

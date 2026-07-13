@@ -1,7 +1,7 @@
 import uuid as uuid_lib
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +23,8 @@ class Document(Base):
     )
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Free-form notes about the document/QR code — internal only, never shown to scanners.
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     # Which Supabase Storage bucket storage_path lives in. Null means the
     # globally configured SUPABASE_STORAGE_BUCKET (the default, unfoldered

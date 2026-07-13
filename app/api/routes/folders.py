@@ -23,7 +23,7 @@ def create_folder(payload: FolderCreate, db: Session = Depends(get_db)) -> Folde
 
 
 @router.delete("/{folder_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_folder(folder_id: int, db: Session = Depends(get_db)) -> Response:
+def delete_folder(folder_id: int, force: bool = False, db: Session = Depends(get_db)) -> Response:
     folder = folder_service.get_folder_or_404(db, folder_id)
-    folder_service.delete_folder(db, folder)
+    folder_service.delete_folder(db, folder, force=force)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

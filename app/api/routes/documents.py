@@ -22,6 +22,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 async def upload_document(
     file: UploadFile,
     title: str | None = Form(default=None),
+    notes: str | None = Form(default=None),
     domain_id: int | None = Form(default=None),
     folder_id: int | None = Form(default=None),
     db: Session = Depends(get_db),
@@ -34,6 +35,7 @@ async def upload_document(
         title=resolved_title,
         contents=contents,
         filename=file.filename or "document.pdf",
+        notes=(notes or "").strip() or None,
         domain_id=domain_id,
         folder_id=folder_id,
     )
@@ -61,6 +63,15 @@ def permanently_delete_document(document_uuid: uuid_lib.UUID, db: Session = Depe
     """Immediately and irreversibly delete a document that's already in the trash."""
     document = document_service.get_document_or_404(db, document_uuid)
     document_service.hard_delete_document(db, document)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# Registered before DELETE /{document_uuid} for the same reason as GET
+# /trash above — "trash" must not be swallowed as a {document_uuid} value.
+@router.delete("/trash", status_code=status.HTTP_204_NO_CONTENT)
+def permanently_delete_all_trash(db: Session = Depends(get_db)) -> Response:
+    """Immediately and irreversibly delete every document currently in the trash."""
+    document_service.hard_delete_all_trash(db)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
